@@ -1,5 +1,3 @@
-// ISS Distance Tracker - Minimal & Aesthetic
-// Clean, professional design inspired by personal website
 
 let currentUserPos = null;
 let updateInterval = null;
@@ -7,6 +5,7 @@ let lastUpdateTime = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTracker();
+
 });
 
 async function initTracker() {
@@ -16,7 +15,6 @@ async function initTracker() {
     const issCoordsEl = document.getElementById('iss-coords');
     const distanceNote = document.getElementById('distance-note');
     const connectionStatus = document.getElementById('connection-status');
-    const updateTimeEl = document.getElementById('update-time');
     const distanceCard = document.getElementById('distance-card');
 
     // Configuration
@@ -24,12 +22,15 @@ async function initTracker() {
     const POLL_INTERVAL = 5000;
     const IP_CACHE_KEY = 'user_geo_cache_minimal';
     const ISS_CACHE_KEY = 'iss_pos_cache_minimal';
-    const OVERHEAD_THRESHOLD = 500;
+
+    // Thresholds for display states (in km)
+    const VISIBLE_THRESHOLD = 2300; // Horizon (approximate visibility range)
+    const CLOSE_THRESHOLD = 800;    // High elevation pass (good viewing)
+    const OVERHEAD_THRESHOLD = 50;  // Direct zenith pass (extremely rare)
 
     let isRequestPending = false;
     let wasOverheadLastTime = false;
 
-    // Helper functions
     function getCached(key, ttlMs) {
         return new Promise((resolve) => {
             chrome.storage.local.get([key], (result) => {
@@ -42,6 +43,7 @@ async function initTracker() {
                     resolve(data.payload);
                 } else {
                     resolve(null);
+                    return;
                 }
             });
         });
@@ -58,25 +60,7 @@ async function initTracker() {
         });
     }
 
-    function updateTimeDisplay() {
-        if (!lastUpdateTime) return;
-        const now = new Date();
-        const diffMs = now - lastUpdateTime;
-        const diffSec = Math.floor(diffMs / 1000);
-        
-        if (diffSec < 10) {
-            updateTimeEl.textContent = 'Just now';
-        } else if (diffSec < 60) {
-            updateTimeEl.textContent = `${diffSec}s ago`;
-        } else if (diffSec < 3600) {
-            updateTimeEl.textContent = `${Math.floor(diffSec / 60)}m ago`;
-        } else {
-            updateTimeEl.textContent = lastUpdateTime.toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit'
-            });
-        }
-    }
+
 
     function formatCoords(lat, lon) {
         const latDir = lat >= 0 ? 'N' : 'S';
@@ -133,11 +117,11 @@ async function initTracker() {
         }
 
         isRequestPending = true;
-        connectionStatus.textContent = 'Updating...';
-        
+        if (connectionStatus) connectionStatus.textContent = 'Updating...';
+
         try {
             const issRes = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
-            
+
             if (issRes.status === 429) throw new Error('Rate limit');
             if (!issRes.ok) throw new Error('API failed');
 
@@ -146,23 +130,21 @@ async function initTracker() {
             issLon = issData.longitude;
 
             await setCached(ISS_CACHE_KEY, { lat: issLat, lon: issLon });
-            lastUpdateTime = new Date();
-            updateTimeDisplay();
-            connectionStatus.textContent = 'Connected';
-            
+            if (connectionStatus) connectionStatus.textContent = 'Connected';
+
             distanceEl.classList.remove('loading', 'error');
             renderISS(issLat, issLon);
 
         } catch (e) {
             console.error('ISS Update Error:', e);
-            
+
             const staleIss = await getCached(ISS_CACHE_KEY, 60000);
             if (staleIss) {
-                connectionStatus.textContent = 'Using cache';
+                if (connectionStatus) connectionStatus.textContent = 'Using cache';
                 distanceEl.classList.add('loading');
                 renderISS(staleIss.lat, staleIss.lon);
             } else {
-                connectionStatus.textContent = 'Disconnected';
+                if (connectionStatus) connectionStatus.textContent = 'Disconnected';
                 distanceEl.classList.remove('loading');
                 distanceEl.classList.add('error');
                 distanceNum.textContent = 'No signal';
@@ -177,7 +159,7 @@ async function initTracker() {
     // Render Function
     function renderISS(issLat, issLon) {
         issCoordsEl.textContent = formatCoords(issLat, issLon);
-        distanceCard.classList.remove('overhead');
+        distanceCard.classList.remove('overhead', 'nearby');
 
         if (currentUserPos) {
             // Calculate ground distance using Haversine
@@ -185,49 +167,43 @@ async function initTracker() {
             const dLat = (issLat - currentUserPos.lat) * Math.PI / 180;
             const dLon = (issLon - currentUserPos.lon) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(currentUserPos.lat * Math.PI / 180) * 
-                      Math.cos(issLat * Math.PI / 180) *
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                Math.cos(currentUserPos.lat * Math.PI / 180) *
+                Math.cos(issLat * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             const groundDistance = R * c;
 
             const roundedDistance = Math.round(groundDistance);
-            const isOverhead = groundDistance <= OVERHEAD_THRESHOLD;
 
-            // Update display
-            distanceNum.textContent = roundedDistance.toLocaleString();
-            
-            if (isOverhead && !wasOverheadLastTime) {
+            if (roundedDistance <= OVERHEAD_THRESHOLD) {
                 distanceCard.classList.add('overhead');
-                distanceNote.innerHTML = '<strong>ISS is directly overhead</strong> · Ground distance: 0 km · Altitude: ~408 km';
-            } else if (isOverhead) {
+                distanceNote.innerHTML = 'Zenith Pass! ISS is directly above you.';
+            } else if (roundedDistance <= CLOSE_THRESHOLD) {
                 distanceCard.classList.add('overhead');
-                distanceNote.innerHTML = '<strong>ISS is overhead</strong> · Look up! 408 km above you';
+                distanceNote.innerHTML = 'Close Flyby. High in the sky. Look up!';
+            } else if (roundedDistance <= VISIBLE_THRESHOLD) {
+                distanceCard.classList.add('nearby');
+                distanceNote.innerHTML = 'Above Horizon. In range, but low in the sky.';
             } else {
-                distanceNote.textContent = 'When ISS is directly above you, ground distance becomes 0 km (altitude: ~408 km)';
+                distanceNote.innerHTML = 'ISS follows a fixed track while Earth spins, so most passes are "flybys" to your side.';
             }
 
-            wasOverheadLastTime = isOverhead;
+            distanceNum.textContent = roundedDistance.toLocaleString();
+            wasOverheadLastTime = (roundedDistance <= CLOSE_THRESHOLD);
+
         } else {
             distanceNum.textContent = '—';
             distanceNote.textContent = 'Enable location to calculate distance';
         }
     }
 
-    // Initial call
     await updateISS();
-    
-    // Set up interval
+
     updateInterval = setInterval(async () => {
         await updateISS();
-        updateTimeDisplay();
     }, POLL_INTERVAL);
-
-    // Update time display every second
-    setInterval(updateTimeDisplay, 1000);
 }
 
-// Clean up
 window.addEventListener('beforeunload', () => {
     if (updateInterval) {
         clearInterval(updateInterval);

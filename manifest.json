@@ -4,8 +4,13 @@
   "version": "1.0.0",
   "description": "See how far the International Space Station is from your location right now",
   "permissions": [
-    "storage"
+    "storage",
+    "alarms",
+    "notifications"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "host_permissions": [
     "https://api.wheretheiss.at/*",
     "https://ipwho.is/*",

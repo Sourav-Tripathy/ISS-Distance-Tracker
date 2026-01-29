@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISS Tracker</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-title">ISS Distance Tracker</div>
+            <div class="header-subtitle">Real-time distance to the International Space Station</div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Distance Card -->
+            <div class="distance-card" id="distance-card">
+                <div class="distance-label">
+                    <span>GROUND DISTANCE TO ISS</span>
+                </div>
+                <div class="distance-value" id="iss-distance">
+                    <span id="distance-number">—</span><span class="distance-unit">km</span>
+                </div>
+                <div class="distance-note" id="distance-note">
+                    When ISS is directly above you, ground distance becomes 0 km (altitude: ~408 km)
+                </div>
+            </div>
+
+            <!-- Coordinates -->
+            <div class="coordinates-container">
+                <div class="coord-card">
+                    <div class="coord-label">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                        </svg>
+                        YOUR LOCATION
+                    </div>
+                    <div class="coord-value" id="user-coords">—</div>
+                </div>
+                
+                <div class="coord-card">
+                    <div class="coord-label">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                        </svg>
+                        ISS POSITION
+                    </div>
+                    <div class="coord-value" id="iss-coords">—</div>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div class="status-container">
+                <div class="status-row">
+                    <span class="status-label">
+                        <span class="status-dot active"></span>
+                        CONNECTION
+                    </span>
+                    <span class="status-value" id="connection-status">Connected</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">CALCULATION METHOD</span>
+                    <span class="status-value">Haversine</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">ISS ALTITUDE</span>
+                    <span class="status-value">~408 km</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="update-time" id="update-time">—</div>
+            <a href="https://souravtripathy.com" target="_blank" class="website-link">souravtripathy.com</a>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "ISS Distance Tracker",
+  "version": "1.0.0",
+  "description": "See how far the International Space Station is from your location right now",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.wheretheiss.at/*",
+    "https://ipwho.is/*",
+    "https://ipapi.co/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

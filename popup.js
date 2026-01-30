@@ -17,7 +17,7 @@ async function initTracker() {
     const connectionStatus = document.getElementById('connection-status');
     const distanceCard = document.getElementById('distance-card');
 
-    // Configuration
+    //  Configuration
     const RATE_LIMIT_WINDOW = 2000;
     const POLL_INTERVAL = 5000;
     const IP_CACHE_KEY = 'user_geo_cache_minimal';

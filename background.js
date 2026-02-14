@@ -23,9 +23,23 @@ async function checkProximity() {
             'iss_pos_cache_minimal',
             'last_notification_time'
         ]);
-        const userLoc = storageData.user_geo_cache_minimal ? storageData.user_geo_cache_minimal.payload : null;
+        let userLoc = storageData.user_geo_cache_minimal ? storageData.user_geo_cache_minimal.payload : null;
 
-        if (!userLoc) return;
+        if (!userLoc) {
+            console.log('Cache miss in background, fetching location...');
+            userLoc = await getIPLocation();
+            if (userLoc) {
+                chrome.storage.local.set({
+                    'user_geo_cache_minimal': {
+                        timestamp: Date.now(),
+                        payload: userLoc
+                    }
+                });
+            } else {
+                console.warn('Background failed to get location');
+                return;
+            }
+        }
 
         const cachedIss = storageData.iss_pos_cache_minimal;
         let issData = null;
@@ -92,4 +106,61 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 function toRad(deg) {
     return deg * (Math.PI / 180);
+}
+
+async function getIPLocation() {
+    // Helper with timeout
+    async function fetchJSON(url, timeout = 3000) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, { signal: controller.signal });
+            return response;
+        } finally {
+            clearTimeout(id);
+        }
+    }
+
+    const providers = [
+        async () => {
+            const r = await fetchJSON("https://ipwho.is/");
+            if (!r.ok) throw new Error('ipwho blocked');
+            const j = await r.json();
+            if (!j.success) throw new Error('ipwho failed');
+            return { lat: j.latitude, lon: j.longitude };
+        },
+        async () => {
+            const r = await fetchJSON("https://ipapi.co/json/");
+            if (!r.ok) throw new Error('ipapi blocked');
+            const j = await r.json();
+            if (j.error) throw new Error(j.reason || 'ipapi error');
+            return { lat: j.latitude, lon: j.longitude };
+        },
+        async () => {
+            const r = await fetchJSON("https://ipinfo.io/json");
+            if (!r.ok) throw new Error('ipinfo blocked');
+            const j = await r.json();
+            if (!j.loc) throw new Error('ipinfo missing loc');
+            const [lat, lon] = j.loc.split(",");
+            return { lat: +lat, lon: +lon };
+        },
+        async () => {
+            const r = await fetchJSON("https://freeipapi.com/api/json");
+            if (!r.ok) throw new Error('freeipapi blocked');
+            const j = await r.json();
+            return { lat: j.latitude, lon: j.longitude };
+        }
+    ];
+
+    for (const p of providers) {
+        try {
+            const result = await p();
+            if (result && !isNaN(result.lat) && !isNaN(result.lon)) {
+                return result;
+            }
+        } catch (e) {
+            console.warn("Provider failed, trying next...", e);
+        }
+    }
+    return null;
 }

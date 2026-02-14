@@ -68,6 +68,63 @@ async function initTracker() {
         return `${Math.abs(lat).toFixed(2)}°${latDir}, ${Math.abs(lon).toFixed(2)}°${lonDir}`;
     }
 
+    async function getIPLocation() {
+        // Helper with timeout
+        async function fetchJSON(url, timeout = 3000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, { signal: controller.signal });
+                return response;
+            } finally {
+                clearTimeout(id);
+            }
+        }
+
+        const providers = [
+            async () => {
+                const r = await fetchJSON("https://ipwho.is/");
+                if (!r.ok) throw new Error('ipwho blocked');
+                const j = await r.json();
+                if (!j.success) throw new Error('ipwho failed');
+                return { lat: j.latitude, lon: j.longitude };
+            },
+            async () => {
+                const r = await fetchJSON("https://ipapi.co/json/");
+                if (!r.ok) throw new Error('ipapi blocked');
+                const j = await r.json();
+                if (j.error) throw new Error(j.reason || 'ipapi error');
+                return { lat: j.latitude, lon: j.longitude };
+            },
+            async () => {
+                const r = await fetchJSON("https://ipinfo.io/json");
+                if (!r.ok) throw new Error('ipinfo blocked');
+                const j = await r.json();
+                if (!j.loc) throw new Error('ipinfo missing loc');
+                const [lat, lon] = j.loc.split(",");
+                return { lat: +lat, lon: +lon };
+            },
+            async () => {
+                const r = await fetchJSON("https://freeipapi.com/api/json");
+                if (!r.ok) throw new Error('freeipapi blocked');
+                const j = await r.json();
+                return { lat: j.latitude, lon: j.longitude };
+            }
+        ];
+
+        for (const p of providers) {
+            try {
+                const result = await p();
+                if (result && !isNaN(result.lat) && !isNaN(result.lon)) {
+                    return result;
+                }
+            } catch (e) {
+                console.warn("Provider failed, trying next...", e);
+            }
+        }
+        return null;
+    }
+
     // Get User Location
     const cachedUserLoc = await getCached(IP_CACHE_KEY, 3600 * 1000);
     if (cachedUserLoc) {
@@ -75,30 +132,19 @@ async function initTracker() {
         userCoordsEl.textContent = formatCoords(currentUserPos.lat, currentUserPos.lon);
     } else {
         userCoordsEl.textContent = 'Detecting...';
+
         try {
-            const ipRes = await fetch('https://ipwho.is/');
-            if (ipRes.ok) {
-                const ipData = await ipRes.json();
-                if (ipData.success) {
-                    currentUserPos = { lat: ipData.latitude, lon: ipData.longitude };
-                    await setCached(IP_CACHE_KEY, currentUserPos);
-                    userCoordsEl.textContent = formatCoords(currentUserPos.lat, currentUserPos.lon);
-                }
+            const loc = await getIPLocation();
+            if (loc) {
+                currentUserPos = loc;
+                await setCached(IP_CACHE_KEY, currentUserPos);
+                userCoordsEl.textContent = formatCoords(currentUserPos.lat, currentUserPos.lon);
+            } else {
+                throw new Error("All location providers failed");
             }
         } catch (e) {
-            try {
-                const res2 = await fetch('https://ipapi.co/json/');
-                if (res2.ok) {
-                    const data2 = await res2.json();
-                    if (data2.latitude && data2.longitude) {
-                        currentUserPos = { lat: data2.latitude, lon: data2.longitude };
-                        await setCached(IP_CACHE_KEY, currentUserPos);
-                        userCoordsEl.textContent = formatCoords(currentUserPos.lat, currentUserPos.lon);
-                    }
-                }
-            } catch (e2) {
-                userCoordsEl.textContent = 'Location unavailable';
-            }
+            console.error("Location detection error:", e);
+            userCoordsEl.textContent = 'Location unavailable';
         }
     }
 
